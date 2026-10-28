@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Athan Clock</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Amiri+Quran&family=Jost:wght@400;500;600&family=Reem+Kufi:wght@400;500;600&display=swap">
+<style>
+/* Layout: kiosk board for a landscape tablet — clock, dates and weather across the top; the six times as a row of tiles; the surah of the day fills the bottom. Tiles go 3×2 and the page scrolls on narrow or portrait screens. */
+:root{
+  --ok:#2f7a3e; --ok-soft:#e1efe3; --miss:#b4442f;
+  --bg:#edf1f0; --surface:#fbfcfc; --ink:#13232a; --muted:#56676c; --line:#d2dbda;
+  --accent:#0e6d76; --accent-ink:#ffffff; --accent-soft:#d9ebeb; --brass:#94661b; --pattern:#0e6d76;
+  --font-display:"Reem Kufi","Jost",system-ui,sans-serif;
+  --font-body:"Jost",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-ar:"Amiri","Noto Naskh Arabic","Geeza Pro","Times New Roman",serif;
+  --font-quran:"Amiri Quran","Amiri","Noto Naskh Arabic","Geeza Pro",serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ok:#6fcf86; --ok-soft:#15301e; --miss:#ef8a72;
+    --bg:#0a1318; --surface:#101d24; --ink:#e6eeec; --muted:#8ea2a5; --line:#1f3039;
+    --accent:#4cc1c3; --accent-ink:#05181b; --accent-soft:#12313a; --brass:#d6aa5b; --pattern:#4cc1c3;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ok:#6fcf86; --ok-soft:#15301e; --miss:#ef8a72;
+  --bg:#0a1318; --surface:#101d24; --ink:#e6eeec; --muted:#8ea2a5; --line:#1f3039;
+  --accent:#4cc1c3; --accent-ink:#05181b; --accent-soft:#12313a; --brass:#d6aa5b; --pattern:#4cc1c3;
+  color-scheme:dark;
+}
+
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;overflow:hidden;-webkit-tap-highlight-color:transparent}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:8px}
+
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background:var(--pattern);opacity:.07;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cg fill='none' stroke='black' stroke-width='1.2'%3E%3Crect x='20' y='20' width='32' height='32'/%3E%3Crect x='20' y='20' width='32' height='32' transform='rotate(45 36 36)'/%3E%3Cpath d='M0 0L20 20M72 0L52 20M0 72L20 52M72 72L52 52'/%3E%3C/g%3E%3C/svg%3E") repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cg fill='none' stroke='black' stroke-width='1.2'%3E%3Crect x='20' y='20' width='32' height='32'/%3E%3Crect x='20' y='20' width='32' height='32' transform='rotate(45 36 36)'/%3E%3Cpath d='M0 0L20 20M72 0L52 20M0 72L20 52M72 72L52 52'/%3E%3C/g%3E%3C/svg%3E") repeat;
+}
+
+.app{
+  position:relative;z-index:1;height:100%;
+  display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:clamp(10px,2.2vh,20px);
+  padding-block:clamp(10px,2.6vh,24px);
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  transition:filter 1.5s ease;
+}
+body.night .app{filter:brightness(.38)}
+.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+/* ---------- top: clock, dates, weather ---------- */
+.top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:clamp(12px,3vw,32px);align-items:end}
+.timeblock{display:flex;align-items:flex-end;gap:clamp(14px,3vw,36px);flex-wrap:wrap;min-width:0}
+.clock{display:flex;align-items:baseline;font-family:var(--font-display);font-weight:500;font-size:clamp(60px,18vmin,180px);line-height:.9;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.clock .side{display:flex;flex-direction:column;justify-content:flex-end;gap:.1em;font-size:.2em;line-height:1;padding-bottom:.16em;margin-left:.16em}
+.clock .ampm{color:var(--muted);font-family:var(--font-body);font-weight:500;letter-spacing:.06em}
+.clock .sec{color:var(--brass)}
+.dates{display:flex;flex-direction:column;gap:3px;padding-bottom:.4em;min-width:0}
+.greg{font-size:clamp(18px,3.2vmin,26px);font-weight:500}
+.hijri{font-size:clamp(15px,2.5vmin,20px);color:var(--muted);display:flex;gap:10px;flex-wrap:wrap;align-items:baseline}
+.hijri .ar{font-family:var(--font-ar);font-size:1.15em;color:var(--brass)}
+.place{font-size:13px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-weight:500}
+
+.side-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;min-width:0}
+.weather{display:flex;align-items:center;gap:14px;text-align:right}
+.weather .w-icon{width:clamp(44px,9vmin,68px);height:clamp(44px,9vmin,68px);color:var(--brass);flex:none}
+.weather .w-temp{font-family:var(--font-display);font-size:clamp(34px,8vmin,64px);line-height:1;font-variant-numeric:tabular-nums}
+.weather .w-desc{font-size:clamp(14px,2.4vmin,18px);font-weight:500}
+.weather .w-sub{font-size:14px;color:var(--muted)}
+.weather .w-text{display:flex;flex-direction:column;gap:2px}
+.weather.off .w-temp{font-size:clamp(22px,4vmin,30px);color:var(--muted)}
+.tools{display:flex;align-items:center;gap:10px}
+.qchip{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--muted);border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px 5px 6px;white-space:nowrap}
+.qchip svg{width:28px;height:28px}
+.icon-btn{display:grid;place-items:center;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--surface);cursor:pointer;flex:none}
+.icon-btn svg{width:22px;height:22px}
+
+/* ---------- middle: the six times ---------- */
+.prayers{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:clamp(6px,1.2vw,14px)}
+.tile{position:relative;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:clamp(10px,2vh,16px) 8px clamp(8px,1.6vh,12px);display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
+.tile .ar{font-family:var(--font-ar);font-size:clamp(20px,4.2vmin,32px);color:var(--accent);line-height:1.25}
+.tile .en{font-family:var(--font-display);font-size:clamp(15px,2.8vmin,21px);line-height:1.1}
+.tile .time{font-family:var(--font-display);font-size:clamp(24px,5.6vmin,44px);font-variant-numeric:tabular-nums;line-height:1.15;margin-top:4px;white-space:nowrap}
+.tile .time small{font-family:var(--font-body);font-size:.36em;margin-left:3px;color:var(--muted);letter-spacing:.06em}
+.tile .cd{font-size:clamp(13px,2.2vmin,16px);color:var(--brass);font-weight:600;font-variant-numeric:tabular-nums;min-height:1.3em}
+.tile.current{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.tile.current .ar,.tile.current .time small,.tile.current .cd{color:inherit}
+.tile.current .ar{opacity:.9}
+.tile.next{border:2px solid var(--brass);padding-top:calc(clamp(10px,2vh,16px) - 1px)}
+.tile.is-sunrise .en,.tile.is-sunrise .time,.tile.is-sunrise .ar{color:var(--muted)}
+.pray{margin-top:auto;display:flex;align-items:center;justify-content:center;gap:7px;min-height:40px;width:100%;border:1px solid var(--line);border-radius:10px;background:transparent;cursor:pointer;font-size:clamp(13px,2.1vmin,16px);font-weight:500;color:var(--muted);padding:4px 6px;white-space:nowrap}
+.pray .box{width:20px;height:20px;flex:none;border:2px solid currentColor;border-radius:5px;display:grid;place-items:center}
+.pray .box svg{width:14px;height:14px}
+.pray:not(.done) .box svg{visibility:hidden}
+.pray.done{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.pray.done .box{background:var(--ok);border-color:var(--ok);color:var(--ok-soft)}
+.pray.missed{border-color:var(--miss);color:var(--miss)}
+.tile.current .pray{border-color:currentColor;color:inherit}
+.tile.current .pray.done{background:var(--accent-ink);color:var(--accent);border-color:var(--accent-ink)}
+.tile.current .pray.done .box{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.pray-space{margin-top:auto;min-height:40px}
+.tile .cd{margin-bottom:6px}
+.bell{position:absolute;top:4px;right:4px;width:36px;height:36px;border-radius:10px;border:0;background:transparent;display:grid;place-items:center;cursor:pointer;color:inherit;opacity:.75}
+.bell[aria-pressed="false"]{opacity:.3}
+.bell svg{width:18px;height:18px}
+
+/* ---------- bottom: surah of the day ---------- */
+.surah{min-height:0;display:grid;grid-template-columns:minmax(150px,.3fr) minmax(0,1fr);gap:clamp(14px,3vw,32px);background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:clamp(12px,2.2vh,20px) clamp(16px,2.4vw,26px);overflow:hidden}
+.s-meta{display:flex;flex-direction:column;gap:4px;min-width:0;justify-content:center}
+.s-meta .s-ar{font-family:var(--font-ar);font-size:clamp(26px,5.4vmin,42px);color:var(--accent);line-height:1.3}
+.s-meta .s-en{font-family:var(--font-display);font-size:clamp(17px,3vmin,22px)}
+.s-meta .s-info{font-size:14px;color:var(--muted)}
+.s-meta .kahf{margin-top:6px;align-self:flex-start;font-size:13px;font-weight:600;color:var(--brass);border:1px solid currentColor;border-radius:999px;padding:3px 10px}
+.s-wrap{position:relative;min-height:0;overflow:hidden;-webkit-mask:linear-gradient(transparent,#000 10%,#000 90%,transparent);mask:linear-gradient(transparent,#000 10%,#000 90%,transparent)}
+.s-text{font-family:var(--font-quran);direction:rtl;text-align:center;font-size:clamp(21px,4.2vmin,32px);line-height:2.15;padding-block:.4em;will-change:transform}
+.s-text .basmala{display:block;color:var(--accent);margin-bottom:.15em}
+.ayah{display:inline-grid;place-items:center;min-width:1.6em;height:1.6em;margin:0 .25em;border:1.5px solid var(--brass);border-radius:50%;font-family:var(--font-ar);font-size:.55em;line-height:1;color:var(--brass);vertical-align:.35em;padding:0 .2em}
+.s-text.scrolling{animation:scrollv var(--dur,30s) ease-in-out infinite alternate}
+@keyframes scrollv{0%,10%{transform:translateY(0)}90%,100%{transform:translateY(var(--dist,0))}}
+
+/* ---------- overlays ---------- */
+.unlock{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:30;background:var(--brass);color:var(--bg);border:0;border-radius:999px;padding:14px 22px;font-weight:600;font-size:16px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.2);max-width:calc(100% - 32px)}
+.toast{position:fixed;top:calc(16px + env(safe-area-inset-top,0px));right:max(16px, env(safe-area-inset-right,0px));z-index:30;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--brass);border-radius:12px;padding:14px 18px;font-size:17px;box-shadow:0 8px 24px rgba(0,0,0,.15);max-width:calc(100% - 32px)}
+.athan{position:fixed;inset:0;z-index:40;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(10px,2.5vh,22px);text-align:center;padding:24px max(16px, env(safe-area-inset-right,0px)) 24px max(16px, env(safe-area-inset-left,0px))}
+.athan .a-ar{font-family:var(--font-ar);font-size:clamp(64px,20vmin,170px);color:var(--accent);line-height:1.1}
+.athan .a-en{font-family:var(--font-display);font-size:clamp(26px,6vmin,48px)}
+.athan .a-note{color:var(--muted);font-size:16px;max-width:46ch}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 18px;font-size:16px;font-weight:500;cursor:pointer;min-height:44px}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.big{font-size:20px;padding:14px 36px;border-radius:14px}
+
+/* ---------- settings ---------- */
+dialog{width:min(680px, calc(100% - 32px));max-height:calc(100% - 32px);border:1px solid var(--line);border-radius:18px;background:var(--surface);color:var(--ink);padding:0}
+dialog::backdrop{background:rgba(5,15,18,.55)}
+.dlg{display:flex;flex-direction:column;max-height:calc(100vh - 34px)}
+.dlg-head,.dlg-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 20px}
+.dlg-head{border-bottom:1px solid var(--line)}
+.dlg-head h2{margin:0;font-family:var(--font-display);font-weight:500;font-size:24px}
+.dlg-foot{border-top:1px solid var(--line)}
+.dlg-body{overflow:auto;padding:4px 20px 20px;display:flex;flex-direction:column}
+fieldset{border:0;margin:0;padding:16px 0;border-bottom:1px solid var(--line);display:grid;gap:12px}
+fieldset:last-child{border-bottom:0}
+legend{font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;color:var(--brass);padding:0;margin-bottom:12px;float:left;width:100%}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--muted);min-width:0}
+label.f input,label.f select{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px;min-height:44px;width:100%}
+label.chk{display:flex;align-items:center;gap:10px;font-size:16px;min-height:36px;cursor:pointer}
+label.chk input{width:20px;height:20px;accent-color:var(--accent)}
+input[type=range]{accent-color:var(--accent);padding:0 !important;border:0 !important;background:transparent !important}
+.hint{font-size:13px;color:var(--muted);line-height:1.5;margin:0}
+.audio-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.audio-row .status{font-size:14px;color:var(--muted);flex-basis:100%}
+.file-btn{position:relative;overflow:hidden}
+.file-btn input{position:absolute;inset:0;opacity:0;cursor:pointer}
+
+/* ---------- narrow / portrait ---------- */
+@media (max-width:820px), (orientation:portrait) and (max-width:1100px){
+  body{overflow:auto}
+  html,body{height:auto;min-height:100%}
+  .app{height:auto;grid-template-rows:auto}
+  .top{grid-template-columns:minmax(0,1fr)}
+  .side-col{align-items:flex-start}
+  .weather{text-align:left;flex-direction:row}
+  .prayers{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .surah{grid-template-columns:minmax(0,1fr)}
+  .s-wrap{-webkit-mask:none;mask:none}
+}
+@media (prefers-reduced-motion: reduce){ .app{transition:none} .s-text.scrolling{animation:none} .s-wrap{overflow:auto} }
+</style>
+</head>
+<body>
+<main class="app" id="app">
+  <header class="top">
+    <div class="timeblock">
+      <div class="clock" id="clock"><span id="hm">12:00</span><span class="side"><span class="sec" id="sec">00</span><span class="ampm" id="ampm">PM</span></span></div>
+      <div class="dates">
+        <div class="place" id="placeName">Toronto</div>
+        <div class="greg" id="greg"></div>
+        <div class="hijri"><span id="hijri"></span><span class="ar" id="hijriAr" lang="ar" dir="rtl"></span></div>
+      </div>
+    </div>
+    <div class="side-col">
+      <div class="weather off" id="weather" aria-live="polite">
+        <div class="w-text">
+          <div class="w-temp" id="wTemp">—</div>
+          <div class="w-desc" id="wDesc">Loading weather</div>
+          <div class="w-sub" id="wSub"></div>
+        </div>
+        <svg class="w-icon" id="wIcon" viewBox="0 0 48 48" aria-hidden="true"></svg>
+      </div>
+      <div class="tools">
+        <div class="qchip" title="Qibla direction">
+          <svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="44" fill="none" stroke="var(--line)" stroke-width="6"/><g id="needle"><line x1="50" y1="50" x2="50" y2="20" stroke="var(--accent)" stroke-width="9" stroke-linecap="round"/><rect x="40" y="6" width="20" height="20" rx="2" fill="var(--ink)"/></g></svg>
+          <span id="qText">Qibla</span>
+        </div>
+        <button class="icon-btn" id="openSettings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <section class="prayers" id="prayers" aria-label="Today's prayer times"></section>
+
+  <section class="surah" aria-label="Surah of the day">
+    <div class="s-meta">
+      <span class="eyebrow">Surah of the day</span>
+      <span class="s-ar" id="sAr" lang="ar" dir="rtl"></span>
+      <span class="s-en" id="sEn"></span>
+      <span class="s-info" id="sInfo"></span>
+      <span class="kahf" id="kahf" hidden>Jumuʿah · read Surah Al-Kahf</span>
+    </div>
+    <div class="s-wrap" id="sWrap"><div class="s-text" id="sText" lang="ar"></div></div>
+  </section>
+</main>
+
+<button class="unlock" id="unlock" hidden>Tap to turn on athan sound</button>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<div class="athan" id="athan" role="dialog" aria-modal="true" aria-labelledby="athanEn" hidden>
+  <div class="eyebrow">Athan</div>
+  <div class="a-ar" id="athanAr" lang="ar" dir="rtl"></div>
+  <div class="a-en" id="athanEn"></div>
+  <p class="a-note" id="athanNote" hidden></p>
+  <button class="btn primary big" id="stopAthan">Stop</button>
+</div>
+
+<dialog id="settings" aria-labelledby="setTitle">
+  <form method="dialog" class="dlg" id="setForm">
+    <div class="dlg-head"><h2 id="setTitle">Settings</h2><button class="btn" value="close">Done</button></div>
+    <div class="dlg-body">
+      <fieldset>
+        <legend>Location</legend>
+        <div class="grid2">
+          <label class="f">Place name<input id="sPlace" type="text" autocomplete="off"></label>
+          <label class="f">Latitude<input id="sLat" type="number" step="0.0001" min="-90" max="90"></label>
+          <label class="f">Longitude<input id="sLng" type="number" step="0.0001" min="-180" max="180"></label>
+        </div>
+        <p class="hint">Use your home's coordinates for the most accurate times, weather and qibla. Long-press your house in Google Maps to copy them.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Calculation</legend>
+        <div class="grid2">
+          <label class="f">Method<select id="sMethod"></select></label>
+          <label class="f">Asr<select id="sAsr"><option value="standard">Standard (Shafiʿi, Maliki, Hanbali)</option><option value="hanafi">Hanafi</option></select></label>
+        </div>
+        <div class="grid2" id="customAngles" hidden>
+          <label class="f">Fajr angle (°)<input id="sCFajr" type="number" step="0.1" min="10" max="21"></label>
+          <label class="f">Isha angle (°)<input id="sCIsha" type="number" step="0.1" min="10" max="21"></label>
+        </div>
+        <p class="hint">Adjust by minutes to match your masjid's timetable. A positive number makes that time later.</p>
+        <div class="grid3" id="offsets"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Athan</legend>
+        <div class="grid3" id="athanToggles"></div>
+        <div class="grid2">
+          <label class="f">Volume <input id="sVol" type="range" min="0" max="1" step="0.05"></label>
+          <label class="f">Fajr volume <input id="sFVol" type="range" min="0" max="1" step="0.05"></label>
+        </div>
+        <div class="grid2">
+          <label class="chk"><input id="sRemOn" type="checkbox">Chime before each prayer</label>
+          <label class="f">Minutes before<input id="sRemMin" type="number" min="1" max="60" step="1"></label>
+        </div>
+        <div class="audio-row">
+          <strong>Athan recording</strong>
+          <span class="btn file-btn">Choose file<input id="upRegular" type="file" accept="audio/*" aria-label="Choose athan recording"></span>
+          <button type="button" class="btn" id="clrRegular">Remove</button>
+          <button type="button" class="btn" id="testRegular">Test</button>
+          <span class="status" id="stRegular"></span>
+        </div>
+        <div class="audio-row">
+          <strong>Fajr athan recording</strong>
+          <span class="btn file-btn">Choose file<input id="upFajr" type="file" accept="audio/*" aria-label="Choose Fajr athan recording"></span>
+          <button type="button" class="btn" id="clrFajr">Remove</button>
+          <button type="button" class="btn" id="testFajr">Test</button>
+          <span class="status" id="stFajr"></span>
+        </div>
+        <p class="hint">On the tablet you can also put <b>athan.mp3</b> and <b>athan-fajr.mp3</b> in the same folder as this page and they'll be picked up automatically. Without a recording, a soft chime plays instead.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Display</legend>
+        <div class="grid2">
+          <label class="chk"><input id="s24" type="checkbox">24-hour clock</label>
+          <label class="chk"><input id="sSec" type="checkbox">Show seconds</label>
+          <label class="chk"><input id="sF" type="checkbox">Temperature in °F</label>
+          <label class="chk"><input id="sNight" type="checkbox">Dim the screen at night</label>
+          <label class="chk"><input id="sHijriMag" type="checkbox">Start Hijri day at Maghrib</label>
+        </div>
+        <label class="f" style="max-width:220px">Hijri date adjustment (days)<input id="sHijriAdj" type="number" min="-2" max="2" step="1"></label>
+        <p class="hint">Night dimming runs from an hour after Isha until 30 minutes before Fajr. Tap the screen to brighten it for a minute. Weather comes from Open-Meteo and refreshes every 15 minutes.</p>
+      </fieldset>
+    </div>
+    <div class="dlg-foot"><span class="hint" id="calcSummary"></span><button class="btn primary" value="close">Done</button></div>
+  </form>
+</dialog>
+
+<script>
+// CALC-START
+const PT = (() => {
+  const dtr = d => d * Math.PI / 180, rtd = r => r * 180 / Math.PI;
+  const sin = d => Math.sin(dtr(d)), cos = d => Math.cos(dtr(d)), tan = d => Math.tan(dtr(d));
+  const arcsin = x => rtd(Math.asin(x)), arccos = x => rtd(Math.acos(x));
+  const arctan2 = (y, x) => rtd(Math.atan2(y, x)), arccot = x => rtd(Math.atan(1 / x));
+  const fix = (a, b) => { a = a - b * Math.floor(a / b); return a < 0 ? a + b : a; };
+
+  function julian(y, m, d) {
+    if (m <= 2) { y -= 1; m += 12; }
+    const A = Math.floor(y / 100), B = 2 - A + Math.floor(A / 4);
+    return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + d + B - 1524.5;
+  }
+  function sunPos(jd) {
+    const D = jd - 2451545.0;
+    const g = fix(357.529 + 0.98560028 * D, 360);
+    const q = fix(280.459 + 0.98564736 * D, 360);
+    const L = fix(q + 1.915 * sin(g) + 0.020 * sin(2 * g), 360);
+    const e = 23.439 - 0.00000036 * D;
+    const RA = arctan2(cos(e) * sin(L), cos(L)) / 15;
+    return { decl: arcsin(sin(e) * sin(L)), eqt: q / 15 - fix(RA, 24) };
+  }
+
+  // Returns Date objects for one local calendar day. opt: {fajrAngle, ishaAngle, ishaMin, asrFactor, offsets}
+  function compute(y, m, d, lat, lng, opt) {
+    const jDate = julian(y, m, d) - lng / (15 * 24);
+    const midDay = t => fix(12 - sunPos(jDate + t).eqt, 24);
+    const angleTime = (angle, t, ccw) => {
+      const p = sunPos(jDate + t), noon = midDay(t);
+      const T = arccos((-sin(angle) - sin(p.decl) * sin(lat)) / (cos(p.decl) * cos(lat))) / 15;
+      return noon + (ccw ? -T : T);
+    };
+    const asrTime = (f, t) => {
+      const p = sunPos(jDate + t);
+      return angleTime(-arccot(f + tan(Math.abs(lat - p.decl))), t, false);
+    };
+    let t = { fajr: 5, sunrise: 6, dhuhr: 12, asr: 13, sunset: 18, isha: 18 };
+    for (let i = 0; i < 2; i++) {
+      const p = k => t[k] / 24;
+      t = {
+        fajr: angleTime(opt.fajrAngle, p('fajr'), true),
+        sunrise: angleTime(0.833, p('sunrise'), true),
+        dhuhr: midDay(p('dhuhr')),
+        asr: asrTime(opt.asrFactor, p('asr')),
+        sunset: angleTime(0.833, p('sunset'), false),
+        isha: opt.ishaMin == null ? angleTime(opt.ishaAngle, p('isha'), false) : 18,
+      };
+    }
+    for (const k in t) t[k] += -lng / 15; // to UTC hours
+    const maghrib = t.sunset;
+    if (opt.ishaMin != null) t.isha = maghrib + opt.ishaMin / 60;
+    // high-latitude safeguard (angle-based)
+    const night = fix(t.sunrise - t.sunset, 24);
+    const fajrPortion = opt.fajrAngle / 60 * night;
+    if (isNaN(t.fajr) || t.sunrise - t.fajr > fajrPortion) t.fajr = t.sunrise - fajrPortion;
+    if (opt.ishaMin == null) {
+      const ishaPortion = opt.ishaAngle / 60 * night;
+      if (isNaN(t.isha) || t.isha - t.sunset > ishaPortion) t.isha = t.sunset + ishaPortion;
+    }
+    const base = Date.UTC(y, m - 1, d), off = opt.offsets || {};
+    const out = {};
+    const hrs = { fajr: t.fajr, sunrise: t.sunrise, dhuhr: t.dhuhr, asr: t.asr, maghrib, isha: t.isha };
+    for (const k in hrs) out[k] = new Date(base + (Math.round(hrs[k] * 60) + (+off[k] || 0)) * 60000);
+    return out;
+  }
+
+  function qibla(lat, lng) {
+    const kLat = 21.4225, kLng = 39.8262, dL = kLng - lng;
+    const bearing = fix(arctan2(sin(dL), cos(lat) * tan(kLat) - sin(lat) * cos(dL)), 360);
+    const R = 6371, a = sin((kLat - lat) / 2) ** 2 + cos(lat) * cos(kLat) * sin(dL / 2) ** 2;
+    return { bearing, km: 2 * R * Math.asin(Math.sqrt(a)) };
+  }
+  return { compute, qibla };
+})();
+// CALC-END
+
+const SURAHS = [{"n":1,"ar":"الفاتحة","tr":"Al-Fatihah","en":"The Opening","type":"meccan","v":["بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ","ٱلۡحَمۡدُ لِلَّهِ رَبِّ ٱلۡعَٰلَمِينَ","ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ","مَٰلِكِ يَوۡمِ ٱلدِّينِ","إِيَّاكَ نَعۡبُدُ وَإِيَّاكَ نَسۡتَعِينُ","ٱهۡدِنَا ٱلصِّرَٰطَ ٱلۡمُسۡتَقِيمَ","صِرَٰطَ ٱلَّذِينَ أَنۡعَمۡتَ عَلَيۡهِمۡ غَيۡرِ ٱلۡمَغۡضُوبِ عَلَيۡهِمۡ وَلَا ٱلضَّآلِّينَ"]},{"n":93,"ar":"الضحى","tr":"Ad-Duhaa","en":"The Morning Hours","type":"meccan","v":["وَٱلضُّحَىٰ","وَٱلَّيۡلِ إِذَا سَجَىٰ","مَا وَدَّعَكَ رَبُّكَ وَمَا قَلَىٰ","وَلَلۡأٓخِرَةُ خَيۡرٞ لَّكَ مِنَ ٱلۡأُولَىٰ","وَلَسَوۡفَ يُعۡطِيكَ رَبُّكَ فَتَرۡضَىٰٓ","أَلَمۡ يَجِدۡكَ يَتِيمٗا فَـَٔاوَىٰ","وَوَجَدَكَ ضَآلّٗا فَهَدَىٰ","وَوَجَدَكَ عَآئِلٗا فَأَغۡنَىٰ","فَأَمَّا ٱلۡيَتِيمَ فَلَا تَقۡهَرۡ","وَأَمَّا ٱلسَّآئِلَ فَلَا تَنۡهَرۡ","وَأَمَّا بِنِعۡمَةِ رَبِّكَ فَحَدِّثۡ"]},{"n":94,"ar":"الشرح","tr":"Ash-Sharh","en":"The Relief","type":"meccan","v":["أَلَمۡ نَشۡرَحۡ لَكَ صَدۡرَكَ","وَوَضَعۡنَا عَنكَ وِزۡرَكَ","ٱلَّذِيٓ أَنقَضَ ظَهۡرَكَ","وَرَفَعۡنَا لَكَ ذِكۡرَكَ","فَإِنَّ مَعَ ٱلۡعُسۡرِ يُسۡرًا","إِنَّ مَعَ ٱلۡعُسۡرِ يُسۡرٗا","فَإِذَا فَرَغۡتَ فَٱنصَبۡ","وَإِلَىٰ رَبِّكَ فَٱرۡغَب"]},{"n":95,"ar":"التين","tr":"At-Tin","en":"The Fig","type":"meccan","v":["وَٱلتِّينِ وَٱلزَّيۡتُونِ","وَطُورِ سِينِينَ","وَهَٰذَا ٱلۡبَلَدِ ٱلۡأَمِينِ","لَقَدۡ خَلَقۡنَا ٱلۡإِنسَٰنَ فِيٓ أَحۡسَنِ تَقۡوِيمٖ","ثُمَّ رَدَدۡنَٰهُ أَسۡفَلَ سَٰفِلِينَ","إِلَّا ٱلَّذِينَ ءَامَنُواْ وَعَمِلُواْ ٱلصَّـٰلِحَٰتِ فَلَهُمۡ أَجۡرٌ غَيۡرُ مَمۡنُونٖ","فَمَا يُكَذِّبُكَ بَعۡدُ بِٱلدِّينِ","أَلَيۡسَ ٱللَّهُ بِأَحۡكَمِ ٱلۡحَٰكِمِينَ"]},{"n":97,"ar":"القدر","tr":"Al-Qadr","en":"The Night of Decree","type":"meccan","v":["إِنَّآ أَنزَلۡنَٰهُ فِي لَيۡلَةِ ٱلۡقَدۡرِ","وَمَآ أَدۡرَىٰكَ مَا لَيۡلَةُ ٱلۡقَدۡرِ","لَيۡلَةُ ٱلۡقَدۡرِ خَيۡرٞ مِّنۡ أَلۡفِ شَهۡرٖ","تَنَزَّلُ ٱلۡمَلَـٰٓئِكَةُ وَٱلرُّوحُ فِيهَا بِإِذۡنِ رَبِّهِم مِّن كُلِّ أَمۡرٖ","سَلَٰمٌ هِيَ حَتَّىٰ مَطۡلَعِ ٱلۡفَجۡرِ"]},{"n":99,"ar":"الزلزلة","tr":"Az-Zalzalah","en":"The Earthquake","type":"medinan","v":["إِذَا زُلۡزِلَتِ ٱلۡأَرۡضُ زِلۡزَالَهَا","وَأَخۡرَجَتِ ٱلۡأَرۡضُ أَثۡقَالَهَا","وَقَالَ ٱلۡإِنسَٰنُ مَا لَهَا","يَوۡمَئِذٖ تُحَدِّثُ أَخۡبَارَهَا","بِأَنَّ رَبَّكَ أَوۡحَىٰ لَهَا","يَوۡمَئِذٖ يَصۡدُرُ ٱلنَّاسُ أَشۡتَاتٗا لِّيُرَوۡاْ أَعۡمَٰلَهُمۡ","فَمَن يَعۡمَلۡ مِثۡقَالَ ذَرَّةٍ خَيۡرٗا يَرَهُۥ","وَمَن يَعۡمَلۡ مِثۡقَالَ ذَرَّةٖ شَرّٗا يَرَهُۥ"]},{"n":100,"ar":"العاديات","tr":"Al-'Adiyat","en":"The Chargers","type":"meccan","v":["وَٱلۡعَٰدِيَٰتِ ضَبۡحٗا","فَٱلۡمُورِيَٰتِ قَدۡحٗا","فَٱلۡمُغِيرَٰتِ صُبۡحٗا","فَأَثَرۡنَ بِهِۦ نَقۡعٗا","فَوَسَطۡنَ بِهِۦ جَمۡعًا","إِنَّ ٱلۡإِنسَٰنَ لِرَبِّهِۦ لَكَنُودٞ","وَإِنَّهُۥ عَلَىٰ ذَٰلِكَ لَشَهِيدٞ","وَإِنَّهُۥ لِحُبِّ ٱلۡخَيۡرِ لَشَدِيدٌ","۞أَفَلَا يَعۡلَمُ إِذَا بُعۡثِرَ مَا فِي ٱلۡقُبُورِ","وَحُصِّلَ مَا فِي ٱلصُّدُورِ","إِنَّ رَبَّهُم بِهِمۡ يَوۡمَئِذٖ لَّخَبِيرُۢ"]},{"n":101,"ar":"القارعة","tr":"Al-Qari'ah","en":"The Striking Calamity","type":"meccan","v":["ٱلۡقَارِعَةُ","مَا ٱلۡقَارِعَةُ","وَمَآ أَدۡرَىٰكَ مَا ٱلۡقَارِعَةُ","يَوۡمَ يَكُونُ ٱلنَّاسُ كَٱلۡفَرَاشِ ٱلۡمَبۡثُوثِ","وَتَكُونُ ٱلۡجِبَالُ كَٱلۡعِهۡنِ ٱلۡمَنفُوشِ","فَأَمَّا مَن ثَقُلَتۡ مَوَٰزِينُهُۥ","فَهُوَ فِي عِيشَةٖ رَّاضِيَةٖ","وَأَمَّا مَنۡ خَفَّتۡ مَوَٰزِينُهُۥ","فَأُمُّهُۥ هَاوِيَةٞ","وَمَآ أَدۡرَىٰكَ مَا هِيَهۡ","نَارٌ حَامِيَةُۢ"]},{"n":102,"ar":"التكاثر","tr":"At-Takathur","en":"Rivalry in Increase","type":"meccan","v":["أَلۡهَىٰكُمُ ٱلتَّكَاثُرُ","حَتَّىٰ زُرۡتُمُ ٱلۡمَقَابِرَ","كَلَّا سَوۡفَ تَعۡلَمُونَ","ثُمَّ كَلَّا سَوۡفَ تَعۡلَمُونَ","كَلَّا لَوۡ تَعۡلَمُونَ عِلۡمَ ٱلۡيَقِينِ","لَتَرَوُنَّ ٱلۡجَحِيمَ","ثُمَّ لَتَرَوُنَّهَا عَيۡنَ ٱلۡيَقِينِ","ثُمَّ لَتُسۡـَٔلُنَّ يَوۡمَئِذٍ عَنِ ٱلنَّعِيمِ"]},{"n":103,"ar":"العصر","tr":"Al-'Asr","en":"The Declining Day","type":"meccan","v":["وَٱلۡعَصۡرِ","إِنَّ ٱلۡإِنسَٰنَ لَفِي خُسۡرٍ","إِلَّا ٱلَّذِينَ ءَامَنُواْ وَعَمِلُواْ ٱلصَّـٰلِحَٰتِ وَتَوَاصَوۡاْ بِٱلۡحَقِّ وَتَوَاصَوۡاْ بِٱلصَّبۡرِ"]},{"n":104,"ar":"الهمزة","tr":"Al-Humazah","en":"The Slanderer","type":"meccan","v":["وَيۡلٞ لِّكُلِّ هُمَزَةٖ لُّمَزَةٍ","ٱلَّذِي جَمَعَ مَالٗا وَعَدَّدَهُۥ","يَحۡسَبُ أَنَّ مَالَهُۥٓ أَخۡلَدَهُۥ","كَلَّاۖ لَيُنۢبَذَنَّ فِي ٱلۡحُطَمَةِ","وَمَآ أَدۡرَىٰكَ مَا ٱلۡحُطَمَةُ","نَارُ ٱللَّهِ ٱلۡمُوقَدَةُ","ٱلَّتِي تَطَّلِعُ عَلَى ٱلۡأَفۡـِٔدَةِ","إِنَّهَا عَلَيۡهِم مُّؤۡصَدَةٞ","فِي عَمَدٖ مُّمَدَّدَةِۭ"]},{"n":105,"ar":"الفيل","tr":"Al-Fil","en":"The Elephant","type":"meccan","v":["أَلَمۡ تَرَ كَيۡفَ فَعَلَ رَبُّكَ بِأَصۡحَٰبِ ٱلۡفِيلِ","أَلَمۡ يَجۡعَلۡ كَيۡدَهُمۡ فِي تَضۡلِيلٖ","وَأَرۡسَلَ عَلَيۡهِمۡ طَيۡرًا أَبَابِيلَ","تَرۡمِيهِم بِحِجَارَةٖ مِّن سِجِّيلٖ","فَجَعَلَهُمۡ كَعَصۡفٖ مَّأۡكُولِۭ"]},{"n":106,"ar":"قريش","tr":"Quraysh","en":"Quraysh","type":"meccan","v":["لِإِيلَٰفِ قُرَيۡشٍ","إِۦلَٰفِهِمۡ رِحۡلَةَ ٱلشِّتَآءِ وَٱلصَّيۡفِ","فَلۡيَعۡبُدُواْ رَبَّ هَٰذَا ٱلۡبَيۡتِ","ٱلَّذِيٓ أَطۡعَمَهُم مِّن جُوعٖ وَءَامَنَهُم مِّنۡ خَوۡفِۭ"]},{"n":107,"ar":"الماعون","tr":"Al-Ma'un","en":"Small Kindnesses","type":"meccan","v":["أَرَءَيۡتَ ٱلَّذِي يُكَذِّبُ بِٱلدِّينِ","فَذَٰلِكَ ٱلَّذِي يَدُعُّ ٱلۡيَتِيمَ","وَلَا يَحُضُّ عَلَىٰ طَعَامِ ٱلۡمِسۡكِينِ","فَوَيۡلٞ لِّلۡمُصَلِّينَ","ٱلَّذِينَ هُمۡ عَن صَلَاتِهِمۡ سَاهُونَ","ٱلَّذِينَ هُمۡ يُرَآءُونَ","وَيَمۡنَعُونَ ٱلۡمَاعُونَ"]},{"n":108,"ar":"الكوثر","tr":"Al-Kawthar","en":"Abundance","type":"meccan","v":["إِنَّآ أَعۡطَيۡنَٰكَ ٱلۡكَوۡثَرَ","فَصَلِّ لِرَبِّكَ وَٱنۡحَرۡ","إِنَّ شَانِئَكَ هُوَ ٱلۡأَبۡتَرُ"]},{"n":109,"ar":"الكافرون","tr":"Al-Kafirun","en":"The Disbelievers","type":"meccan","v":["قُلۡ يَـٰٓأَيُّهَا ٱلۡكَٰفِرُونَ","لَآ أَعۡبُدُ مَا تَعۡبُدُونَ","وَلَآ أَنتُمۡ عَٰبِدُونَ مَآ أَعۡبُدُ","وَلَآ أَنَا۠ عَابِدٞ مَّا عَبَدتُّمۡ","وَلَآ أَنتُمۡ عَٰبِدُونَ مَآ أَعۡبُدُ","لَكُمۡ دِينُكُمۡ وَلِيَ دِينِ"]},{"n":110,"ar":"النصر","tr":"An-Nasr","en":"Divine Support","type":"medinan","v":["إِذَا جَآءَ نَصۡرُ ٱللَّهِ وَٱلۡفَتۡحُ","وَرَأَيۡتَ ٱلنَّاسَ يَدۡخُلُونَ فِي دِينِ ٱللَّهِ أَفۡوَاجٗا","فَسَبِّحۡ بِحَمۡدِ رَبِّكَ وَٱسۡتَغۡفِرۡهُۚ إِنَّهُۥ كَانَ تَوَّابَۢا"]},{"n":111,"ar":"المسد","tr":"Al-Masad","en":"The Palm Fibre","type":"meccan","v":["تَبَّتۡ يَدَآ أَبِي لَهَبٖ وَتَبَّ","مَآ أَغۡنَىٰ عَنۡهُ مَالُهُۥ وَمَا كَسَبَ","سَيَصۡلَىٰ نَارٗا ذَاتَ لَهَبٖ","وَٱمۡرَأَتُهُۥ حَمَّالَةَ ٱلۡحَطَبِ","فِي جِيدِهَا حَبۡلٞ مِّن مَّسَدِۭ"]},{"n":112,"ar":"الإخلاص","tr":"Al-Ikhlas","en":"Sincerity","type":"meccan","v":["قُلۡ هُوَ ٱللَّهُ أَحَدٌ","ٱللَّهُ ٱلصَّمَدُ","لَمۡ يَلِدۡ وَلَمۡ يُولَدۡ","وَلَمۡ يَكُن لَّهُۥ كُفُوًا أَحَدُۢ"]},{"n":113,"ar":"الفلق","tr":"Al-Falaq","en":"The Daybreak","type":"meccan","v":["قُلۡ أَعُوذُ بِرَبِّ ٱلۡفَلَقِ","مِن شَرِّ مَا خَلَقَ","وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ","وَمِن شَرِّ ٱلنَّفَّـٰثَٰتِ فِي ٱلۡعُقَدِ","وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ"]},{"n":114,"ar":"الناس","tr":"An-Nas","en":"Mankind","type":"meccan","v":["قُلۡ أَعُوذُ بِرَبِّ ٱلنَّاسِ","مَلِكِ ٱلنَّاسِ","إِلَٰهِ ٱلنَّاسِ","مِن شَرِّ ٱلۡوَسۡوَاسِ ٱلۡخَنَّاسِ","ٱلَّذِي يُوَسۡوِسُ فِي صُدُورِ ٱلنَّاسِ","مِنَ ٱلۡجِنَّةِ وَٱلنَّاسِ"]}];
+
+const METHODS = {
+  ISNA:    { name: 'ISNA (North America)', fajr: 15, isha: 15 },
+  MWL:     { name: 'Muslim World League', fajr: 18, isha: 17 },
+  Karachi: { name: 'Karachi (18° / 18°)', fajr: 18, isha: 18 },
+  Egypt:   { name: 'Egyptian General Authority', fajr: 19.5, isha: 17.5 },
+  Makkah:  { name: 'Umm al-Qura, Makkah', fajr: 18.5, ishaMin: 90 },
+  Custom:  { name: 'Custom angles' },
+};
+const PRAYERS = [
+  { key: 'fajr', en: 'Fajr', ar: 'الفجر', athan: true },
+  { key: 'sunrise', en: 'Sunrise', ar: 'الشروق', athan: false },
+  { key: 'dhuhr', en: 'Dhuhr', ar: 'الظهر', athan: true },
+  { key: 'asr', en: 'Asr', ar: 'العصر', athan: true },
+  { key: 'maghrib', en: 'Maghrib', ar: 'المغرب', athan: true },
+  { key: 'isha', en: 'Isha', ar: 'العشاء', athan: true },
+];
+const ATHAN_KEYS = PRAYERS.filter(p => p.athan).map(p => p.key);
+const DEFAULTS = {
+  place: 'Toronto', lat: 43.6532, lng: -79.3832, method: 'ISNA', customFajr: 18, customIsha: 18, asr: 'standard',
+  offsets: { fajr: 0, sunrise: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 },
+  athanOn: { fajr: true, dhuhr: true, asr: true, maghrib: true, isha: true },
+  volume: 0.9, fajrVolume: 0.6, reminderOn: true, reminderMin: 10,
+  clock24: false, showSeconds: true, fahrenheit: false, nightDim: true, hijriAdjust: 0, hijriAtMaghrib: true,
+};
+const KEY = 'athan-clock-settings', FIRED_KEY = 'athan-clock-fired', WX_KEY = 'athan-clock-weather';
+const $ = id => document.getElementById(id);
+
+function loadSettings() {
+  const d = JSON.parse(JSON.stringify(DEFAULTS));
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) { const o = JSON.parse(raw); return { ...d, ...o, offsets: { ...d.offsets, ...(o.offsets || {}) }, athanOn: { ...d.athanOn, ...(o.athanOn || {}) } }; }
+  } catch (e) {}
+  return d;
+}
+let S = loadSettings();
+function saveSettings() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+/* ---------- prayer times ---------- */
+let cfgVer = 0; const cache = new Map();
+function calcOpts() {
+  const m = METHODS[S.method] || METHODS.ISNA, custom = S.method === 'Custom';
+  return { fajrAngle: custom ? +S.customFajr || 18 : m.fajr, ishaAngle: custom ? +S.customIsha || 18 : m.isha,
+           ishaMin: m.ishaMin ?? null, asrFactor: S.asr === 'hanafi' ? 2 : 1, offsets: S.offsets };
+}
+function addDays(dt, n) { const x = new Date(dt); x.setDate(x.getDate() + n); return x; }
+function timesFor(dt) {
+  const y = dt.getFullYear(), m = dt.getMonth() + 1, d = dt.getDate(), k = `${y}-${m}-${d}|${cfgVer}`;
+  if (!cache.has(k)) { if (cache.size > 12) cache.clear(); cache.set(k, PT.compute(y, m, d, +S.lat, +S.lng, calcOpts())); }
+  return cache.get(k);
+}
+function timeline(now) {
+  const today = timesFor(now), yest = timesFor(addDays(now, -1)), tom = timesFor(addDays(now, 1));
+  const list = [{ key: 'isha', when: yest.isha, day: -1 }, ...PRAYERS.map(p => ({ key: p.key, when: today[p.key], day: 0 })), { key: 'fajr', when: tom.fajr, day: 1 }];
+  let prev = list[0], next = list[list.length - 1];
+  for (const e of list) { if (e.when <= now) prev = e; else { next = e; break; } }
+  return { today, prev, next };
+}
+function info(key, when) {
+  const p = PRAYERS.find(x => x.key === key);
+  if (key === 'dhuhr' && when && when.getDay() === 5) return { ...p, en: 'Jumuʿah', ar: 'الجمعة' };
+  return p;
+}
+
+/* ---------- formatting ---------- */
+function timeParts(d, withSec) {
+  const f = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', second: withSec ? '2-digit' : undefined, hourCycle: S.clock24 ? 'h23' : 'h12' });
+  const parts = f.formatToParts(d), get = t => (parts.find(p => p.type === t) || {}).value || '';
+  let hour = get('hour'); if (S.clock24) hour = hour.padStart(2, '0');
+  return { hm: `${hour}:${get('minute')}`, sec: get('second'), period: S.clock24 ? '' : get('dayPeriod') };
+}
+function timeHTML(d) { const p = timeParts(d); return p.hm + (p.period ? `<small>${p.period}</small>` : ''); }
+function timeText(d) { const p = timeParts(d); return p.hm + (p.period ? ' ' + p.period : ''); }
+function countdown(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}:${String(sec).padStart(2, '0')}`;
+}
+const AR_DIGITS = n => String(n).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+function hijri(now, maghrib) {
+  let d = new Date(now);
+  if (S.hijriAtMaghrib && maghrib && now >= maghrib) d = addDays(d, 1);
+  d = addDays(d, +S.hijriAdjust || 0);
+  for (const cal of ['islamic-umalqura', 'islamic-civil', 'islamic']) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-u-ca-' + cal, { day: 'numeric', month: 'long', year: 'numeric' }).formatToParts(d);
+      const get = t => (parts.find(p => p.type === t) || {}).value;
+      const day = get('day'), month = get('month'), year = get('year') || get('relatedYear');
+      if (day && month && year) {
+        let ar = '';
+        try { ar = new Intl.DateTimeFormat('ar-SA-u-ca-' + cal + '-nu-arab', { day: 'numeric', month: 'long', year: 'numeric' }).format(d); } catch (e) {}
+        return { en: `${day} ${month} ${String(year).replace(/\D+/g, '')} AH`, ar };
+      }
+    } catch (e) {}
+  }
+  return { en: '', ar: '' };
+}
+
+/* ---------- qibla ---------- */
+const WINDS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+function renderQibla() {
+  const q = PT.qibla(+S.lat, +S.lng);
+  $('needle').setAttribute('transform', `rotate(${q.bearing.toFixed(1)} 50 50)`);
+  $('qText').textContent = `Qibla ${q.bearing.toFixed(1)}° ${WINDS[Math.round(q.bearing / 22.5) % 16]}`;
+}
+
+/* ---------- surah of the day ---------- */
+let surahDay = '';
+function renderSurah(now) {
+  const dk = dateKey(now); if (dk === surahDay) return; surahDay = dk;
+  const dayNum = Math.floor(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 864e5);
+  const s = SURAHS[(dayNum * 5 + 11) % SURAHS.length];
+  $('sAr').textContent = 'سورة ' + s.ar;
+  $('sEn').textContent = `${s.tr} · ${s.en}`;
+  $('sInfo').textContent = `Surah ${s.n} · ${s.type === 'meccan' ? 'Meccan' : 'Medinan'} · ${s.v.length} verses`;
+  $('kahf').hidden = now.getDay() !== 5;
+  const el = $('sText'); el.textContent = '';
+  if (s.n !== 1) { const b = document.createElement('span'); b.className = 'basmala'; b.textContent = SURAHS[0].v[0]; el.append(b); }
+  s.v.forEach((v, i) => {
+    el.append(document.createTextNode(v + ' '));
+    const a = document.createElement('span'); a.className = 'ayah'; a.textContent = AR_DIGITS(i + 1); el.append(a, document.createTextNode(' '));
+  });
+  requestAnimationFrame(fitSurah);
+}
+function fitSurah() {
+  const wrap = $('sWrap'), el = $('sText');
+  el.classList.remove('scrolling'); el.style.transform = '';
+  const over = el.scrollHeight - wrap.clientHeight;
+  if (over > 4 && getComputedStyle(wrap).overflow === 'hidden') {
+    el.style.setProperty('--dist', `-${over}px`);
+    el.style.setProperty('--dur', `${Math.max(12, over / 14)}s`);
+    el.classList.add('scrolling');
+  }
+}
+window.addEventListener('resize', () => requestAnimationFrame(fitSurah));
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => requestAnimationFrame(fitSurah));
+
+/* ---------- weather (Open-Meteo, no key needed) ---------- */
+const WX = {
+  clear: '<circle cx="24" cy="24" r="8" fill="none" stroke="currentColor" stroke-width="3"/><g stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M24 5v5M24 38v5M5 24h5M38 24h5M10.6 10.6l3.5 3.5M33.9 33.9l3.5 3.5M10.6 37.4l3.5-3.5M33.9 14.1l3.5-3.5"/></g>',
+  moon: '<path d="M30 8a16 16 0 1 0 10 24A13 13 0 0 1 30 8z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>',
+  cloud: '<path d="M14 36h20a8 8 0 0 0 0-16 11 11 0 0 0-21 3 6.5 6.5 0 0 0 1 13z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>',
+  partly: '<g stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M17 6v3M6 17h3M9.2 9.2l2.1 2.1M24.8 9.2l-2.1 2.1"/></g><path d="M11.5 21a6 6 0 0 1 10.6-5.6" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/><path d="M17 40h17a7 7 0 0 0 0-14 9.5 9.5 0 0 0-18 2.5A5.8 5.8 0 0 0 17 40z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>',
+  rain: '<path d="M14 28h20a7 7 0 0 0 0-14 10 10 0 0 0-19 2.5A5.8 5.8 0 0 0 14 28z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><g stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M17 33l-2 6M25 33l-2 6M33 33l-2 6"/></g>',
+  snow: '<path d="M14 28h20a7 7 0 0 0 0-14 10 10 0 0 0-19 2.5A5.8 5.8 0 0 0 14 28z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><g fill="currentColor"><circle cx="16" cy="35" r="2"/><circle cx="24" cy="39" r="2"/><circle cx="32" cy="35" r="2"/></g>',
+  storm: '<path d="M14 26h20a7 7 0 0 0 0-14 10 10 0 0 0-19 2.5A5.8 5.8 0 0 0 14 26z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M25 28l-5 8h6l-4 8" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>',
+  fog: '<g stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M8 18h32M12 25h28M8 32h28M14 39h22"/></g>',
+  off: '<path d="M14 36h20a8 8 0 0 0 0-16 11 11 0 0 0-21 3 6.5 6.5 0 0 0 1 13z" fill="none" stroke="currentColor" stroke-width="3" stroke-dasharray="4 4" stroke-linejoin="round"/>',
+};
+function wxLookup(code, isDay) {
+  const c = +code;
+  if (c === 0) return ['Clear', isDay ? 'clear' : 'moon'];
+  if (c === 1) return ['Mainly clear', isDay ? 'clear' : 'moon'];
+  if (c === 2) return ['Partly cloudy', isDay ? 'partly' : 'cloud'];
+  if (c === 3) return ['Overcast', 'cloud'];
+  if (c === 45 || c === 48) return ['Fog', 'fog'];
+  if (c >= 51 && c <= 55) return ['Drizzle', 'rain'];
+  if (c === 56 || c === 57) return ['Freezing drizzle', 'rain'];
+  if (c === 61) return ['Light rain', 'rain'];
+  if (c === 63) return ['Rain', 'rain'];
+  if (c === 65) return ['Heavy rain', 'rain'];
+  if (c === 66 || c === 67) return ['Freezing rain', 'rain'];
+  if (c === 71) return ['Light snow', 'snow'];
+  if (c === 73) return ['Snow', 'snow'];
+  if (c === 75) return ['Heavy snow', 'snow'];
+  if (c === 77) return ['Snow grains', 'snow'];
+  if (c >= 80 && c <= 82) return ['Rain showers', 'rain'];
+  if (c === 85 || c === 86) return ['Snow showers', 'snow'];
+  if (c === 95) return ['Thunderstorm', 'storm'];
+  if (c === 96 || c === 99) return ['Thunderstorm, hail', 'storm'];
+  return ['Weather', 'cloud'];
+}
+let wxData = null;
+try { wxData = JSON.parse(localStorage.getItem(WX_KEY) || 'null'); } catch (e) {}
+function temp(c) { return Math.round(S.fahrenheit ? c * 9 / 5 + 32 : c) + '°'; }
+function renderWeather() {
+  const box = $('weather');
+  if (!wxData || !wxData.current) {
+    box.classList.add('off'); $('wTemp').textContent = 'Weather';
+    $('wDesc').textContent = 'Shows when the tablet is online'; $('wSub').textContent = '';
+    $('wIcon').innerHTML = WX.off; return;
+  }
+  const cur = wxData.current, day = wxData.daily || {};
+  const [label, icon] = wxLookup(cur.weather_code, cur.is_day);
+  box.classList.remove('off');
+  $('wTemp').textContent = temp(cur.temperature_2m);
+  $('wDesc').textContent = label;
+  const hi = day.temperature_2m_max ? temp(day.temperature_2m_max[0]) : '', lo = day.temperature_2m_min ? temp(day.temperature_2m_min[0]) : '';
+  const pop = day.precipitation_probability_max && day.precipitation_probability_max[0] != null ? ` · ${day.precipitation_probability_max[0]}% rain` : '';
+  const age = Date.now() - (wxData.fetchedAt || 0);
+  const stale = age > 2 * 3600e3 ? ` · updated ${Math.round(age / 3600e3)}h ago` : '';
+  $('wSub').textContent = `H ${hi} · L ${lo} · Feels ${temp(cur.apparent_temperature)}${pop}${stale}`;
+  $('wIcon').innerHTML = WX[icon];
+}
+async function fetchWeather() {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${(+S.lat).toFixed(4)}&longitude=${(+S.lng).toFixed(4)}` +
+    `&current=temperature_2m,apparent_temperature,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=1`;
+  try {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    wxData = { current: j.current, daily: j.daily, fetchedAt: Date.now() };
+    try { localStorage.setItem(WX_KEY, JSON.stringify(wxData)); } catch (e) {}
+  } catch (e) { /* offline or blocked: keep the last reading */ }
+  renderWeather();
+}
+
+/* ---------- prayed tracker (kept on this device, last 30 days) ---------- */
+const PRAYED_KEY = 'athan-clock-prayed';
+let prayed = {};
+try { prayed = JSON.parse(localStorage.getItem(PRAYED_KEY) || '{}') || {}; } catch (e) {}
+(function prunePrayed() {
+  const cutoff = Date.now() - 30 * 864e5;
+  for (const k of Object.keys(prayed)) { const [y, m, d] = k.split('-').map(Number); if (new Date(y, m - 1, d) < cutoff) delete prayed[k]; }
+})();
+function savePrayed() { try { localStorage.setItem(PRAYED_KEY, JSON.stringify(prayed)); } catch (e) {} }
+// The boxes reset at Fajr, not midnight: until Fajr, Dhuhr to Isha still belong to yesterday so a late Isha can be ticked.
+function prayedDay(k, now, tl) { return (k !== 'fajr' && now < tl.today.fajr) ? dateKey(addDays(now, -1)) : dateKey(now); }
+const ENDS = { fajr: 'sunrise', dhuhr: 'asr', asr: 'maghrib', maghrib: 'isha' };
+function prayState(k, now, tl) {
+  if ((prayed[prayedDay(k, now, tl)] || {})[k]) return 'done';
+  if (k === 'isha') return 'open';
+  if (k !== 'fajr' && now < tl.today.fajr) return 'missed';
+  return now >= tl.today[ENDS[k]] ? 'missed' : 'open';
+}
+const CHECK = '<span class="box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+
+/* ---------- prayer tiles ---------- */
+const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg>';
+const BELL_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8.7 3A6 6 0 0 1 18 8c0 2.3.3 4 .8 5.4M17 17H3s3-2 3-9c0-.7.1-1.4.4-2"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/><path d="m2 2 20 20"/></svg>';
+
+function prayBtn(p, now, tl) {
+  if (!p.athan) return '<span class="pray-space" aria-hidden="true"></span>';
+  const st = prayState(p.key, now, tl);
+  const label = st === 'done' ? 'Prayed' : st === 'missed' ? 'Missed' : 'Mark prayed';
+  return `<button class="pray ${st}" data-pray="${p.key}" role="checkbox" aria-checked="${st === 'done'}" aria-label="${p.en} prayed">${CHECK}<span>${label}</span></button>`;
+}
+function renderTiles(now, tl) {
+  let html = '';
+  for (const base of PRAYERS) {
+    const when = tl.today[base.key], p = info(base.key, when);
+    const current = tl.prev.day === 0 && tl.prev.key === p.key && p.key !== 'sunrise';
+    const isNext = tl.next.day === 0 && tl.next.key === p.key;
+    const bell = p.athan
+      ? `<button class="bell" data-key="${p.key}" aria-pressed="${!!S.athanOn[p.key]}" aria-label="Athan for ${p.en} ${S.athanOn[p.key] ? 'on' : 'off'}">${S.athanOn[p.key] ? BELL : BELL_OFF}</button>` : '';
+    html += `<div class="tile${current ? ' current' : ''}${isNext ? ' next' : ''}${p.key === 'sunrise' ? ' is-sunrise' : ''}">${bell}
+      <span class="ar" lang="ar" dir="rtl">${p.ar}</span><span class="en">${p.en}</span>
+      <span class="time">${timeHTML(when)}</span><span class="cd" ${isNext ? 'id="cd"' : ''}>${current ? 'Now' : ''}</span>${prayBtn(p, now, tl)}</div>`;
+  }
+  // after Isha, tomorrow's Fajr is next: count down on the Fajr tile
+  $('prayers').innerHTML = html;
+  if (tl.next.day === 1) {
+    const fajrTile = $('prayers').children[0]; const cd = fajrTile.querySelector('.cd');
+    fajrTile.classList.add('next'); cd.id = 'cd';
+  }
+}
+$('prayers').addEventListener('click', e => {
+  const pb = e.target.closest('.pray');
+  if (pb) {
+    const k = pb.dataset.pray, now = new Date(), day = prayedDay(k, now, timeline(now));
+    prayed[day] = prayed[day] || {}; prayed[day][k] = !prayed[day][k];
+    savePrayed(); lastMinute = -1; tick(); return;
+  }
+  const b = e.target.closest('.bell'); if (!b) return;
+  const k = b.dataset.key; S.athanOn[k] = !S.athanOn[k]; saveSettings(); lastMinute = -1; tick();
+});
+
+let lastMinute = -1, lastDay = '';
+function dateKey(d) { return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
+
+function tick() {
+  const now = new Date();
+  const tl = timeline(now);
+  const tp = timeParts(now, true);
+  $('hm').textContent = tp.hm;
+  $('sec').textContent = S.showSeconds ? tp.sec : '';
+  $('sec').hidden = !S.showSeconds;
+  $('ampm').textContent = tp.period;
+
+  const minute = Math.floor(now / 60000);
+  if (minute !== lastMinute) {
+    lastMinute = minute;
+    $('greg').textContent = now.toLocaleDateString('en-CA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const h = hijri(now, tl.today.maghrib);
+    $('hijri').textContent = h.en; $('hijriAr').textContent = h.ar;
+    renderTiles(now, tl);
+    renderSurah(now);
+    updateNight(now, tl);
+    if (minute % 15 === 0) fetchWeather(); else renderWeather();
+  }
+  const cd = $('cd');
+  if (cd) cd.textContent = `in ${countdown(tl.next.when - now)}`;
+  const dk = dateKey(now);
+  if (dk !== lastDay) { lastDay = dk; pruneFired(dk); }
+  checkTriggers(now, tl.today);
+}
+
+/* ---------- night dimming ---------- */
+let wakeUntil = 0;
+function updateNight(now, tl) {
+  const t = tl.today;
+  const late = now > new Date(+t.isha + 60 * 60000), early = now < new Date(+t.fajr - 30 * 60000);
+  document.body.classList.toggle('night', S.nightDim && (late || early) && Date.now() > wakeUntil && $('athan').hidden);
+}
+document.addEventListener('pointerdown', () => {
+  if (document.body.classList.contains('night')) { wakeUntil = Date.now() + 60000; document.body.classList.remove('night'); setTimeout(() => { lastMinute = -1; }, 60500); }
+});
+
+/* ---------- triggers ---------- */
+let fired = new Set();
+try { fired = new Set(JSON.parse(localStorage.getItem(FIRED_KEY) || '[]')); } catch (e) {}
+function markFired(id) { fired.add(id); try { localStorage.setItem(FIRED_KEY, JSON.stringify([...fired])); } catch (e) {} }
+function pruneFired(dk) { fired = new Set([...fired].filter(id => id.startsWith(dk))); try { localStorage.setItem(FIRED_KEY, JSON.stringify([...fired])); } catch (e) {} }
+function checkTriggers(now, t) {
+  const dk = dateKey(now);
+  for (const k of ATHAN_KEYS) {
+    const when = t[k], diff = now - when;
+    if (S.athanOn[k] && diff >= 0 && diff < 120000) {
+      const id = `${dk}:${k}`; if (!fired.has(id)) { markFired(id); playAthan(k); }
+    }
+    if (S.reminderOn && S.athanOn[k] && +S.reminderMin > 0) {
+      const rd = now - (when - S.reminderMin * 60000);
+      if (rd >= 0 && rd < 60000) { const id = `${dk}:${k}:rem`; if (!fired.has(id)) { markFired(id); reminder(k, when); } }
+    }
+  }
+}
+
+/* ---------- audio ---------- */
+let actx = null;
+function getCtx() { if (!actx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) try { actx = new AC(); } catch (e) {} } return actx; }
+const player = new Audio(); player.preload = 'auto';
+const sources = { regular: null, fajr: null };
+let chimeNodes = [], overlayTimer = 0;
+
+function chime(vol, long) {
+  const c = getCtx(); if (!c) return 0;
+  if (c.state === 'suspended') c.resume().catch(() => {});
+  const notes = long ? [[0, 587.33], [1.1, 739.99], [2.2, 880], [3.8, 739.99], [4.9, 659.25], [6.0, 587.33]] : [[0, 880], [0.45, 1174.66]];
+  const t0 = c.currentTime + 0.05, master = c.createGain();
+  master.gain.value = vol; master.connect(c.destination); chimeNodes.push(master);
+  for (const [dt, f] of notes) {
+    for (const [mult, amp] of [[1, 0.45], [2.01, 0.12]]) {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = 'sine'; o.frequency.value = f * mult;
+      g.gain.setValueAtTime(0.0001, t0 + dt);
+      g.gain.exponentialRampToValueAtTime(amp, t0 + dt + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + 2.6);
+      o.connect(g).connect(master); o.start(t0 + dt); o.stop(t0 + dt + 2.7);
+    }
+  }
+  return (notes[notes.length - 1][0] + 2.8) * 1000;
+}
+function stopChime() { for (const n of chimeNodes) try { n.disconnect(); } catch (e) {} chimeNodes = []; }
+
+function showOverlay(k, note) {
+  const p = info(k, new Date());
+  $('athanAr').textContent = p.ar; $('athanEn').textContent = p.en;
+  $('athanNote').hidden = !note; $('athanNote').textContent = note || '';
+  $('athan').hidden = false; document.body.classList.remove('night');
+  clearTimeout(overlayTimer); overlayTimer = setTimeout(stopAthan, 7 * 60000);
+  $('stopAthan').focus();
+}
+function hideOverlay() { $('athan').hidden = true; clearTimeout(overlayTimer); lastMinute = -1; }
+function stopAthan() { try { player.pause(); } catch (e) {} stopChime(); hideOverlay(); }
+player.addEventListener('ended', hideOverlay);
+$('stopAthan').addEventListener('click', stopAthan);
+
+function playAthan(k) {
+  const src = (k === 'fajr' && sources.fajr) || sources.regular;
+  const vol = k === 'fajr' ? +S.fajrVolume : +S.volume;
+  if (src) {
+    showOverlay(k);
+    player.src = src.url; player.volume = Math.min(1, Math.max(0, vol));
+    player.play().catch(() => { showUnlock(); const ms = chime(vol, true); clearTimeout(overlayTimer); overlayTimer = setTimeout(hideOverlay, ms); });
+  } else {
+    showOverlay(k, 'No athan recording added yet, so a chime is playing. Add one in Settings.');
+    const ms = chime(vol, true); clearTimeout(overlayTimer); overlayTimer = setTimeout(hideOverlay, Math.max(ms, 8000));
+  }
+}
+let toastTimer = 0;
+function reminder(k, when) {
+  const p = info(k, when);
+  const t = $('toast'); t.textContent = `${p.en} in ${S.reminderMin} minutes · ${timeText(when)}`; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 30000);
+  chime(Math.min(1, +S.volume * 0.7), false);
+}
+
+function showUnlock() { $('unlock').hidden = false; }
+function checkUnlock() { const c = getCtx(); $('unlock').hidden = !!(c && c.state === 'running'); }
+function unlock() { const c = getCtx(); if (!c) return; c.resume().then(checkUnlock).catch(() => {}); }
+$('unlock').addEventListener('click', unlock);
+document.addEventListener('pointerdown', unlock, { passive: true });
+
+function idbOpen() {
+  return new Promise((res, rej) => {
+    try { const r = indexedDB.open('athan-clock', 1); r.onupgradeneeded = () => r.result.createObjectStore('files'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }
+    catch (e) { rej(e); }
+  });
+}
+async function idb(mode, fn) {
+  try { const db = await idbOpen(); return await new Promise((res, rej) => { const st = db.transaction('files', mode).objectStore('files'); const q = fn(st); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
+  catch (e) { return null; }
+}
+function probe(src) {
+  return new Promise(res => {
+    const a = new Audio(); let done = false; const fin = v => { if (!done) { done = true; res(v); } };
+    a.addEventListener('loadedmetadata', () => fin(true)); a.addEventListener('error', () => fin(false));
+    setTimeout(() => fin(false), 4000); a.preload = 'metadata'; a.src = src;
+  });
+}
+async function resolveSources() {
+  for (const kind of ['regular', 'fajr']) {
+    if (sources[kind] && sources[kind].blob) URL.revokeObjectURL(sources[kind].url);
+    sources[kind] = null;
+    const rec = await idb('readonly', st => st.get('athan-' + kind));
+    if (rec && rec.blob) { sources[kind] = { url: URL.createObjectURL(rec.blob), label: `Using “${rec.name}”`, blob: true }; continue; }
+    const file = kind === 'fajr' ? 'athan-fajr.mp3' : 'athan.mp3';
+    if (await probe(file)) sources[kind] = { url: file, label: `Using ${file} from this page's folder` };
+  }
+  $('stRegular').textContent = sources.regular ? sources.regular.label : 'No recording yet, a chime will play.';
+  $('stFajr').textContent = sources.fajr ? sources.fajr.label : (sources.regular ? 'Not set, the regular athan will play.' : 'Not set.');
+}
+function wireUpload(kind, inputId, clearId) {
+  $(inputId).addEventListener('change', async e => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    const ok = await idb('readwrite', st => st.put({ name: f.name, blob: f }, 'athan-' + kind));
+    if (ok === null) $(kind === 'fajr' ? 'stFajr' : 'stRegular').textContent = 'This browser could not save the file. Try putting it in the page folder instead.';
+    else await resolveSources();
+    e.target.value = '';
+  });
+  $(clearId).addEventListener('click', async () => { await idb('readwrite', st => st.delete('athan-' + kind)); await resolveSources(); });
+}
+wireUpload('regular', 'upRegular', 'clrRegular');
+wireUpload('fajr', 'upFajr', 'clrFajr');
+$('testRegular').addEventListener('click', () => { unlock(); $('settings').close(); playAthan('dhuhr'); });
+$('testFajr').addEventListener('click', () => { unlock(); $('settings').close(); playAthan('fajr'); });
+
+/* ---------- settings ---------- */
+(function buildSettings() {
+  $('sMethod').innerHTML = Object.entries(METHODS).map(([k, m]) => `<option value="${k}">${m.name}</option>`).join('');
+  $('offsets').innerHTML = PRAYERS.map(p => `<label class="f">${p.en}<input id="off-${p.key}" data-off="${p.key}" type="number" step="1" min="-30" max="30"></label>`).join('');
+  $('athanToggles').innerHTML = ATHAN_KEYS.map(k => `<label class="chk"><input id="on-${k}" data-on="${k}" type="checkbox">${info(k).en}</label>`).join('');
+})();
+function fillSettings() {
+  $('sPlace').value = S.place; $('sLat').value = S.lat; $('sLng').value = S.lng;
+  $('sMethod').value = S.method; $('sAsr').value = S.asr; $('sCFajr').value = S.customFajr; $('sCIsha').value = S.customIsha;
+  $('customAngles').hidden = S.method !== 'Custom';
+  for (const p of PRAYERS) $('off-' + p.key).value = S.offsets[p.key];
+  for (const k of ATHAN_KEYS) $('on-' + k).checked = !!S.athanOn[k];
+  $('sVol').value = S.volume; $('sFVol').value = S.fajrVolume; $('sRemOn').checked = S.reminderOn; $('sRemMin').value = S.reminderMin;
+  $('s24').checked = S.clock24; $('sSec').checked = S.showSeconds; $('sF').checked = S.fahrenheit; $('sNight').checked = S.nightDim;
+  $('sHijriMag').checked = S.hijriAtMaghrib; $('sHijriAdj').value = S.hijriAdjust;
+  summarize();
+}
+function summarize() {
+  const t = timesFor(new Date());
+  $('calcSummary').textContent = `Today: Fajr ${timeText(t.fajr)} · Isha ${timeText(t.isha)}`;
+}
+let wxTimer = 0;
+function applyForm(e) {
+  const el = e.target, num = v => (v === '' || isNaN(+v) ? null : +v);
+  if (el.dataset.off) { S.offsets[el.dataset.off] = num(el.value) ?? 0; }
+  else if (el.dataset.on) { S.athanOn[el.dataset.on] = el.checked; }
+  else switch (el.id) {
+    case 'sPlace': S.place = el.value.trim() || 'Home'; break;
+    case 'sLat': { const v = num(el.value); if (v !== null && Math.abs(v) <= 90) { S.lat = v; clearTimeout(wxTimer); wxTimer = setTimeout(fetchWeather, 1500); } break; }
+    case 'sLng': { const v = num(el.value); if (v !== null && Math.abs(v) <= 180) { S.lng = v; clearTimeout(wxTimer); wxTimer = setTimeout(fetchWeather, 1500); } break; }
+    case 'sMethod': S.method = el.value; $('customAngles').hidden = S.method !== 'Custom'; break;
+    case 'sAsr': S.asr = el.value; break;
+    case 'sCFajr': S.customFajr = num(el.value) ?? 18; break;
+    case 'sCIsha': S.customIsha = num(el.value) ?? 18; break;
+    case 'sVol': S.volume = +el.value; break;
+    case 'sFVol': S.fajrVolume = +el.value; break;
+    case 'sRemOn': S.reminderOn = el.checked; break;
+    case 'sRemMin': S.reminderMin = Math.min(60, Math.max(1, num(el.value) ?? 10)); break;
+    case 's24': S.clock24 = el.checked; break;
+    case 'sSec': S.showSeconds = el.checked; break;
+    case 'sF': S.fahrenheit = el.checked; break;
+    case 'sNight': S.nightDim = el.checked; break;
+    case 'sHijriMag': S.hijriAtMaghrib = el.checked; break;
+    case 'sHijriAdj': S.hijriAdjust = Math.min(2, Math.max(-2, num(el.value) ?? 0)); break;
+    default: return;
+  }
+  saveSettings(); cfgVer++; cache.clear(); lastMinute = -1;
+  $('placeName').textContent = S.place; renderQibla(); renderWeather(); summarize(); tick();
+}
+$('setForm').addEventListener('input', applyForm);
+$('setForm').addEventListener('change', e => { if (e.target.type === 'checkbox' || e.target.tagName === 'SELECT') applyForm(e); });
+$('openSettings').addEventListener('click', () => { fillSettings(); $('settings').showModal(); });
+
+/* ---------- keep the screen awake ---------- */
+async function requestWake() { try { if ('wakeLock' in navigator && document.visibilityState === 'visible') await navigator.wakeLock.request('screen'); } catch (e) {} }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { requestWake(); lastMinute = -1; tick(); } });
+
+/* ---------- start ---------- */
+$('placeName').textContent = S.place;
+renderQibla();
+renderWeather();
+fetchWeather();
+tick();
+setTimeout(() => { tick(); setInterval(tick, 1000); }, 1000 - (Date.now() % 1000));
+resolveSources();
+requestWake();
+setTimeout(checkUnlock, 300);
+</script>
+
+</body>
+</html>
